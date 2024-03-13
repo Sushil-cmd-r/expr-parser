@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/sushil-cmd-r/expr-parser/parser"
 	"github.com/sushil-cmd-r/expr-parser/scanner"
-	"github.com/sushil-cmd-r/expr-parser/token"
 )
 
 const Propmt = "> "
@@ -31,10 +31,10 @@ func main() {
 			continue
 		}
 
-		lexer := scanner.New([]byte(line))
+		sc := scanner.New([]byte(line))
+		p := parser.New(sc)
+		expr := p.Parse()
 
-		for tok := lexer.Next(); tok.Type != token.Eof; tok = lexer.Next() {
-			fmt.Printf("%+v\n", tok)
-		}
+		fmt.Println(expr)
 	}
 }

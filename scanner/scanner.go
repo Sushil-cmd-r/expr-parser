@@ -42,7 +42,7 @@ func (s *Scanner) Next() token.Token {
 
 		}
 	}
-	return token.New(token.Eof, "Eof")
+	return token.New(token.Eof, "End of Input")
 }
 
 func (s *Scanner) scanNumber() token.Token {

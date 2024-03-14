@@ -11,8 +11,11 @@ import (
 type Parser struct {
 	sc *scanner.Scanner
 
+	prevTok token.Token
 	currTok token.Token
 	peekTok token.Token
+
+	parserErr bool
 
 	parseRules map[token.TokenType]ParseRule
 }
@@ -21,6 +24,7 @@ func New(sc *scanner.Scanner) *Parser {
 	p := &Parser{
 		sc:         sc,
 		parseRules: make(map[token.TokenType]ParseRule),
+		parserErr:  false,
 	}
 
 	p.registerParseRules()
@@ -30,13 +34,22 @@ func New(sc *scanner.Scanner) *Parser {
 }
 
 func (p *Parser) Parse() ast.Expr {
-	return p.parseExpr(NONE)
+	expr := p.parseExpr(NONE)
+	if p.parserErr == true {
+		return nil
+	}
+	if p.currTok.Type != token.Eof {
+		fmt.Printf("SyntaxError: Unexpected Token %v\n", p.currTok.Literal)
+		return nil
+	}
+	return expr
 }
 
 func (p *Parser) parseExpr(precedence Precedence) ast.Expr {
 	prefix := p.parseRules[p.currTok.Type].prefix
 	if prefix == nil {
-		fmt.Printf("Expected expression after %v\n", p.currTok.Literal)
+		fmt.Printf("SyntaxError: Unexpected Token %v\n", p.currTok.Literal)
+		p.parserErr = true
 		return nil
 	}
 	left := prefix()
@@ -76,6 +89,7 @@ func (p *Parser) primary() ast.Expr {
 }
 
 func (p *Parser) advance() {
+	p.prevTok = p.currTok
 	p.currTok = p.peekTok
 	p.peekTok = p.sc.Next()
 }

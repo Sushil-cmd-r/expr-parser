@@ -34,7 +34,8 @@ func main() {
 		sc := scanner.New([]byte(line))
 		p := parser.New(sc)
 		expr := p.Parse()
-
-		fmt.Println(expr)
+		if expr != nil {
+			fmt.Println(expr)
+		}
 	}
 }

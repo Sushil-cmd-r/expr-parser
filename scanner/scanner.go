@@ -1,77 +1,108 @@
 package scanner
 
 import (
-	"fmt"
+	"strings"
+	"unicode"
 
+	"github.com/sushil-cmd-r/expr-parser/location"
 	"github.com/sushil-cmd-r/expr-parser/token"
 )
 
 type Scanner struct {
-	source   []byte
 	rdOffset int
+	lineNo   int
+	currLine string
+	Lines    []string
 }
 
-func New(source []byte) *Scanner {
+func New(source string) *Scanner {
+	source = strings.TrimRightFunc(source, unicode.IsSpace)
+	lines := strings.Split(source, "\n")
+
 	return &Scanner{
-		source:   source,
 		rdOffset: 0,
+		lineNo:   0,
+		Lines:    lines,
 	}
 }
 
 func (s *Scanner) Next() token.Token {
-	for !s.isAtEnd() {
-		ch := s.advance()
-		switch ch {
-		// Scan Operators
-		case '+':
-			return token.New(token.Plus, "+")
-		case '-':
-			return token.New(token.Minus, "-")
-		case '*':
-			return token.New(token.Star, "*")
-		case '/':
-			return token.New(token.Slash, "/")
-			// Ignore Whitespaces
-		case '\n', ' ', '\t', '\r':
-		// Numbers
-		default:
-			if isNum(ch) {
-				return s.scanNumber()
-			}
-			return token.New(token.Illegal, fmt.Sprintf("unknown token: %s.", string(ch)))
+	s.trimLeft()
 
-		}
+	for s.atLineEnd() && !s.atEnd() {
+		s.getLine()
+		s.trimLeft()
 	}
-	return token.New(token.Eof, "End of Input")
+
+	if s.atLineEnd() {
+		loc := location.NewLocation(s.lineNo, s.rdOffset+1)
+		return token.New(token.Eof, "End of Input", loc)
+	}
+
+	ch := s.advance()
+	loc := location.NewLocation(s.lineNo, s.rdOffset)
+	switch ch {
+	// Scan Operators
+	case '+':
+		return token.New(token.Plus, "+", loc)
+	case '-':
+		return token.New(token.Minus, "-", loc)
+	case '*':
+		return token.New(token.Star, "*", loc)
+	case '/':
+		return token.New(token.Slash, "/", loc)
+	// Numbers
+	default:
+		if isNum(ch) {
+			return s.scanNumber(loc)
+		}
+		return token.New(token.Illegal, string(ch), loc)
+	}
 }
 
-func (s *Scanner) scanNumber() token.Token {
+func (s *Scanner) scanNumber(loc location.Location) token.Token {
 	st := s.rdOffset - 1
 	for isNum(s.peek()) {
 		s.advance()
 	}
-	lit := s.source[st:s.rdOffset]
+	lit := s.currLine[st:s.rdOffset]
 
-	return token.New(token.Number, string(lit))
+	return token.New(token.Number, string(lit), loc)
 }
 
 func (s *Scanner) advance() byte {
-	if s.isAtEnd() {
+	if s.atLineEnd() {
 		return ' '
 	}
 	s.rdOffset += 1
-	return s.source[s.rdOffset-1]
+	return s.currLine[s.rdOffset-1]
 }
 
 func (s *Scanner) peek() byte {
-	if s.isAtEnd() {
+	if s.atLineEnd() {
 		return ' '
 	}
-	return s.source[s.rdOffset]
+	return s.currLine[s.rdOffset]
 }
 
-func (s *Scanner) isAtEnd() bool {
-	return s.rdOffset >= len(s.source)
+func (s *Scanner) trimLeft() {
+	for s.rdOffset < len(s.currLine) && s.currLine[s.rdOffset] == ' ' {
+		s.rdOffset += 1
+	}
+}
+
+func (s *Scanner) getLine() {
+	s.currLine = s.Lines[s.lineNo]
+	s.lineNo += 1
+	s.rdOffset = 0
+}
+
+func (s *Scanner) atLineEnd() bool {
+	return s.rdOffset >= len(s.currLine)
+}
+
+func (s *Scanner) atEnd() bool {
+	return s.lineNo >= len(s.Lines)
 }
 
 func isNum(ch byte) bool {

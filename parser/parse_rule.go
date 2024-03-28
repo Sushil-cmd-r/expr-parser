@@ -7,8 +7,8 @@ import (
 
 type (
 	Precedence int
-	PrefixFn   func() ast.Expr
-	InfixFn    func(ast.Expr) ast.Expr
+	PrefixFn   func() (ast.Expr, error)
+	InfixFn    func(ast.Expr) (ast.Expr, error)
 )
 
 const (
@@ -39,4 +39,5 @@ func (p *Parser) registerParseRules() {
 	p.parseRules[token.Minus] = NewParseRule(TERM, p.unary, p.binary)
 	p.parseRules[token.Star] = NewParseRule(FACTOR, nil, p.binary)
 	p.parseRules[token.Slash] = NewParseRule(FACTOR, nil, p.binary)
+	p.parseRules[token.Eof] = NewParseRule(NONE, nil, nil)
 }

@@ -9,7 +9,7 @@ import (
 	"github.com/sushil-cmd-r/expr-parser/scanner"
 )
 
-const Propmt = "> "
+const Propmt = ">> "
 
 func Start() {
 	fmt.Println("Welcome to Expression Parser!")
@@ -31,7 +31,7 @@ func Start() {
 			continue
 		}
 
-		sc := scanner.New([]byte(line))
+		sc := scanner.New(line)
 		p := parser.New(sc)
 		expr, err := p.Parse()
 		if err != nil {

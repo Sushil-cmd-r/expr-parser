@@ -1,8 +1,6 @@
 package parser
 
 import (
-	"fmt"
-
 	"github.com/sushil-cmd-r/expr-parser/ast"
 	"github.com/sushil-cmd-r/expr-parser/scanner"
 	"github.com/sushil-cmd-r/expr-parser/token"
@@ -11,11 +9,8 @@ import (
 type Parser struct {
 	sc *scanner.Scanner
 
-	prevTok token.Token
 	currTok token.Token
 	peekTok token.Token
-
-	parserErr bool
 
 	parseRules map[token.TokenType]ParseRule
 }
@@ -24,7 +19,6 @@ func New(sc *scanner.Scanner) *Parser {
 	p := &Parser{
 		sc:         sc,
 		parseRules: make(map[token.TokenType]ParseRule),
-		parserErr:  false,
 	}
 
 	p.registerParseRules()
@@ -33,63 +27,87 @@ func New(sc *scanner.Scanner) *Parser {
 	return p
 }
 
-func (p *Parser) Parse() ast.Expr {
-	expr := p.parseExpr(NONE)
-	if p.parserErr == true {
-		return nil
+func (p *Parser) Parse() (ast.Expr, error) {
+	expr, err := p.parseExpr(NONE)
+	if err != nil {
+		return nil, err
 	}
-	if p.currTok.Type != token.Eof {
-		fmt.Printf("SyntaxError: Unexpected Token %v\n", p.currTok.Literal)
-		return nil
+
+	if p.peekTok.Type != token.Eof {
+		return nil, NewParserErr(p, p.peekTok, InvalidTokErr)
 	}
-	return expr
+
+	return expr, nil
 }
 
-func (p *Parser) parseExpr(precedence Precedence) ast.Expr {
+func (p *Parser) parseExpr(precedence Precedence) (ast.Expr, error) {
+	if p.currTok.Type == token.Eof {
+		return nil, NewParserErr(p, p.currTok, UnexpectedTokErr)
+	}
+
 	prefix := p.parseRules[p.currTok.Type].prefix
 	if prefix == nil {
-		fmt.Printf("SyntaxError: Unexpected Token %v\n", p.currTok.Literal)
-		p.parserErr = true
-		return nil
+		return nil, NewParserErr(p, p.currTok, UnexpectedTokErr)
 	}
-	left := prefix()
 
-	for precedence < p.parseRules[p.peekTok.Type].precedence {
-		infix := p.parseRules[p.peekTok.Type].infix
+	left, err := prefix()
+	if err != nil {
+		return nil, err
+	}
+
+	for {
+		rule, ok := p.parseRules[p.peekTok.Type]
+		if !ok {
+			return nil, NewParserErr(p, p.peekTok, UnknownTokErr)
+		}
+
+		peekPrec := rule.precedence
+		if peekPrec <= precedence {
+			break
+		}
+
+		infix := rule.infix
 		if infix == nil {
-			return left
+			return left, nil
 		}
 		p.advance()
-
-		left = infix(left)
+		left, err = infix(left)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	return left
+	return left, nil
 }
 
-func (p *Parser) binary(left ast.Expr) ast.Expr {
+func (p *Parser) binary(left ast.Expr) (ast.Expr, error) {
 	operator := p.currTok
 	precedence := p.parseRules[operator.Type].precedence
 
 	p.advance()
-	right := p.parseExpr(precedence)
-	return ast.NewBinary(operator, left, right)
+	right, err := p.parseExpr(precedence)
+	if err != nil {
+		return nil, err
+	}
+	return ast.NewBinary(operator, left, right), nil
 }
 
-func (p *Parser) unary() ast.Expr {
+func (p *Parser) unary() (ast.Expr, error) {
 	operator := p.currTok
 	p.advance()
-	right := p.parseExpr(UNARY)
+	right, err := p.parseExpr(UNARY)
+	if err != nil {
+		return nil, err
+	}
 
-	return ast.NewUnary(operator, right)
+	return ast.NewUnary(operator, right), nil
 }
 
-func (p *Parser) primary() ast.Expr {
-	return ast.NewNumber(p.currTok.Literal)
+func (p *Parser) primary() (ast.Expr, error) {
+	return ast.NewNumber(p.currTok.Literal), nil
 }
 
 func (p *Parser) advance() {
-	p.prevTok = p.currTok
 	p.currTok = p.peekTok
 	p.peekTok = p.sc.Next()
 }
